@@ -9,8 +9,4 @@ COPY . .
 
 ENV PORT=8080
 
-CMD exec gunicorn wsgi:app \
---bind 0.0.0.0:${PORT} \
---workers 2 \
---threads 2 \
---timeout 60
+CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "2"]
