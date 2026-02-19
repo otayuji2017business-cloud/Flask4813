@@ -1,4 +1,6 @@
 Flask==3.0.2
+Flask-WTF==1.2.1
+Python-dotenv==1.0.0
 SQLAlchemy==2.0.29
 PyMySQL==1.1.0
 gunicorn==21.2.0
