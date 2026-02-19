@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
 from flask import Blueprint, request, redirect, render_template
-from .extensions import SessionLocal
+from . import extensions
 from .models import Item
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,8 @@ def index() -> Dict[str, Any] | str:
     Returns:
         レンダリングされたHTMLまたはリダイレクトレスポンス
     """
-    db = SessionLocal()
+    # SessionLocal をリアルタイムで参照（extensions モジュールから直接）
+    db = extensions.SessionLocal()
 
     try:
         if request.method == "POST":

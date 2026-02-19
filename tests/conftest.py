@@ -4,7 +4,7 @@ pytest が実行するテスト全体で使用されるフィクスチャと設�
 """
 
 import logging
-from typing import Generator
+from typing import Generator, Any
 import pytest
 from flask import Flask
 from sqlalchemy import create_engine
@@ -24,18 +24,22 @@ def test_app() -> Flask:
     SQLite in-memory データベースを使用し、
     本番環境に依存しないテスト環境を提供します。
     
-    Yields:
+    テスト時も呼ばれるため、init_db=False でデータベース初期化をスキップします。
+    実際の DB 初期化は client フィクスチャで行います。
+    
+    Returns:
         テスト用に設定された Flask アプリケーション
     """
     # テスト用に DB 環境変数を設定（create_app 前に設定）
     import os
     os.environ["FLASK_ENV"] = "test"
     
-    app = create_app()
+    # init_db=False でデータベース初期化をスキップ
+    app = create_app(init_db=False)
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     
-    logger.info("Test Flask app created with test configuration")
+    logger.info("Test Flask app created with test configuration (DB init skipped)")
     
     return app
 
@@ -76,12 +80,12 @@ def test_db(test_app: Flask) -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(test_app: Flask) -> Flask.test_client:
+def client(test_app: Flask) -> Any:
     """テスト用 Flask test client
     
     HTTP リクエストをシミュレートしてルートをテストするために使用します。
     テスト用の in-memory SQLite データベースを設定し、
-    各トラッキング終了後には自動でクリーンアップします。
+    各テスト終了後には自動でクリーンアップします。
     
     Args:
         test_app: テスト用 Flask アプリケーション
@@ -90,20 +94,27 @@ def client(test_app: Flask) -> Flask.test_client:
         Flask test client
     """
     import app.extensions as ext
+    from app.models import Base
     
     # テスト用 in-memory DB を初期化
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     
+    # SessionLocal を設定
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    
     # グローバル extensions に設定
     ext.engine = engine
-    ext.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    ext.SessionLocal = SessionLocal
     
     logger.info("Flask test client initialized with in-memory database")
     
-    yield test_app.test_client()
+    test_client = test_app.test_client()
+    
+    yield test_client
     
     # クリーンアップ
+    logger.info("Cleaning up test database")
     engine.dispose()
     ext.engine = None
     ext.SessionLocal = None
