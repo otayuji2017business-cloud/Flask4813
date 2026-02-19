@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 engine: Optional[Engine] = None
 SessionLocal: Optional[sessionmaker] = None
+_initialized: bool = False
 
 def init_engine(database_url: str) -> None:
     """SQLAlchemy エンジンを初期化
@@ -20,7 +21,11 @@ def init_engine(database_url: str) -> None:
     Raises:
         RuntimeError: エンジン初期化に失敗した場合
     """
-    global engine, SessionLocal
+    global engine, SessionLocal, _initialized
+    
+    if _initialized:
+        logger.warning("Database engine already initialized, skipping")
+        return
     
     try:
         logger.info(f"Initializing database engine with URL: {database_url[:50]}...")
@@ -46,8 +51,27 @@ def init_engine(database_url: str) -> None:
             )
         
         SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        _initialized = True
         logger.info("Database engine initialization completed successfully")
         
     except Exception as e:
         logger.error(f"Failed to initialize database engine: {e}")
         raise RuntimeError(f"Database initialization failed: {e}") from e
+
+def get_session() -> Session:
+    """SessionLocal インスタンスを取得
+    
+    SessionLocal が初期化されていない場合は RuntimeError を発生させます。
+    ルートハンドラーはこのメソッドを使用して安全にセッションを取得します。
+    
+    Returns:
+        SQLAlchemy Session インスタンス
+        
+    Raises:
+        RuntimeError: SessionLocal が未初期化の場合
+    """
+    if SessionLocal is None:
+        logger.error("SessionLocal is not initialized. Call init_engine() first.")
+        raise RuntimeError("Database session factory not initialized. Call init_engine() first.")
+    
+    return SessionLocal()

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}名前一覧 - Flask4813{% endblock %}
+
+{% block header %}名前が登録されました{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #2c3e50;
+    }
+    
+    input[type="text"],
+    input[type="submit"] {
+        font-size: 16px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+    }
+    
+    input[type="text"] {
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    input[type="text"]:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    }
+    
+    input[type="submit"] {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+        cursor: pointer;
+        font-weight: 500;
+        padding: 10px 20px;
+    }
+    
+    input[type="submit"]:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+    
+    .csrf-field {
+        display: none;
+    }
+    
+    .items-section {
+        margin-top: 40px;
+    }
+    
+    h2 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 1.3em;
+    }
+    
+    .items-list {
+        list-style: none;
+    }
+    
+    .items-list li {
+        padding: 12px 16px;
+        background-color: #f9f9f9;
+        margin-bottom: 8px;
+        border-left: 4px solid #007bff;
+        border-radius: 4px;
+    }
+    
+    .items-list li:hover {
+        background-color: #f0f0f0;
+    }
+    
+    .no-items {
+        padding: 20px;
+        text-align: center;
+        color: #999;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-section">
+    <h2>名前を登録</h2>
+    <form method="POST" action="/">
+        {{ csrf_token() }}
+        <div class="form-group">
+            <label for="name">お名前</label>
+            <input type="text" id="name" name="name" placeholder="名前を入力してください" required>
+        </div>
+        <input type="submit" value="登録">
+    </form>
+</div>
+
+<div class="items-section">
+    <h2>登録された名前一覧</h2>
+    {% if items %}
+        <ul class="items-list">
+            {% for item in items %}
+                <li>{{ item.name }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="no-items">
+            <p>まだ名前が登録されていません。</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
