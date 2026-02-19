@@ -69,8 +69,8 @@ Flask4813 アプリケーションの CI/CD パイプラインを GitHub Actions
 
 2. **Docker ビルド**
    ```bash
-   docker build -t asia-northeast1-docker.pkg.dev/{GCP_PROJECT_ID}/flask4813/web:latest .
-   ```
+   docker build -t asia-northeast1-docker.pkg.dev//flask4813/web:latest .
+   ```{GCP_PROJECT_ID}
 
 3. **Artifact Registry へ Push**
    ```bash
