@@ -25,15 +25,25 @@ def init_engine(database_url: str) -> None:
     try:
         logger.info(f"Initializing database engine with URL: {database_url[:50]}...")
         
-        engine = create_engine(
-            database_url,
-            pool_size=5,
-            max_overflow=2,
-            pool_pre_ping=True,
-            pool_recycle=1800,
-            echo=False,
-            future=True
-        )
+        # SQLite の場合とそれ以外で設定を分ける
+        if "sqlite://" in database_url:
+            # SQLite では pool_size, max_overflow が使用不可
+            engine = create_engine(
+                database_url,
+                echo=False,
+                future=True
+            )
+        else:
+            # MySQL など実サーバーの場合
+            engine = create_engine(
+                database_url,
+                pool_size=5,
+                max_overflow=2,
+                pool_pre_ping=True,
+                pool_recycle=1800,
+                echo=False,
+                future=True
+            )
         
         SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
         logger.info("Database engine initialization completed successfully")

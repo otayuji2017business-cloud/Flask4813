@@ -27,19 +27,22 @@ def test_app() -> Flask:
     Yields:
         テスト用に設定された Flask アプリケーション
     """
+    # テスト用に DB 環境変数を設定（create_app 前に設定）
+    import os
+    os.environ["FLASK_ENV"] = "test"
+    
     app = create_app()
     app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
     app.config["SECRET_KEY"] = "test-secret-key"
     
-    logger.info("Test Flask app created with in-memory SQLite database")
+    logger.info("Test Flask app created with test configuration")
     
     return app
 
 
 @pytest.fixture
 def test_db(test_app: Flask) -> Generator[Session, None, None]:
-    """テスト用データベースセッション
+    """テスト用データベースセッション（モデルテスト専用）
     
     各テストケースの前に：
     1. SQLite in-memory エンジンを初期化
@@ -48,6 +51,9 @@ def test_db(test_app: Flask) -> Generator[Session, None, None]:
     テスト終了後：
     1. セッションをクローズ
     2. テーブルをドロップ（ロールバック）
+    
+    このフィクスチャはモデルテストで使用します。
+    ルートテストですては、client フィクスチャを使用してください。
     
     Yields:
         SQLAlchemy Session オブジェクト
@@ -60,7 +66,7 @@ def test_db(test_app: Flask) -> Generator[Session, None, None]:
         SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
         db = SessionLocal()
         
-        logger.info("Test database session created")
+        logger.info("Test database session created (model tests)")
         
         yield db
         
@@ -70,28 +76,35 @@ def test_db(test_app: Flask) -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(test_app: Flask, test_db: Session):
+def client(test_app: Flask) -> Flask.test_client:
     """テスト用 Flask test client
     
     HTTP リクエストをシミュレートしてルートをテストするために使用します。
+    テスト用の in-memory SQLite データベースを設定し、
+    各トラッキング終了後には自動でクリーンアップします。
     
     Args:
         test_app: テスト用 Flask アプリケーション
-        test_db: テスト用データベースセッション
     
-    Returns:
+    Yields:
         Flask test client
     """
-    # test_db をアプリケーションに注入（routes.py から利用可能にする）
-    with test_app.app_context():
-        # グローバル engine と SessionLocal を設定
-        from app.extensions import engine as global_engine, SessionLocal as global_session
-        import app.extensions as ext
-        
-        ext.engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(ext.engine)
-        ext.SessionLocal = sessionmaker(bind=ext.engine, autoflush=False, autocommit=False)
-        
-        yield test_app.test_client()
-        
-        ext.engine.dispose()
+    import app.extensions as ext
+    
+    # テスト用 in-memory DB を初期化
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    
+    # グローバル extensions に設定
+    ext.engine = engine
+    ext.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    
+    logger.info("Flask test client initialized with in-memory database")
+    
+    yield test_app.test_client()
+    
+    # クリーンアップ
+    engine.dispose()
+    ext.engine = None
+    ext.SessionLocal = None
+    logger.info("Flask test client cleaned up")

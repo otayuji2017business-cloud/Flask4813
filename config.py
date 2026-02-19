@@ -39,17 +39,29 @@ class DevelopmentConfig:
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
     DATABASE_URL: str = "sqlite:///app.db"
 
-def get_config() -> Union[Type[ProdConfig], Type[DevelopmentConfig]]:
+class TestConfig:
+    """テスト環境の設定
+    
+    pytest 実行時の設定。
+    SQLite in-memory を使用してテストします。
+    """
+    SECRET_KEY: str = "test-secret-key"
+    DATABASE_URL: str = "sqlite:///:memory:"
+
+def get_config() -> Union[Type[ProdConfig], Type[DevelopmentConfig], Type[TestConfig]]:
     """環境に応じた設定クラスを返す
     
     FLASK_ENV 環境変数により以下のように判定します：
     - "production": ProdConfig
+    - "test": TestConfig
     - その他: DevelopmentConfig（デフォルト）
     
     Returns:
-        設定クラス（ProdConfig または DevelopmentConfig）
+        設定クラス（ProdConfig、TestConfig または DevelopmentConfig）
     """
     env = os.environ.get("FLASK_ENV", "development")
     if env == "production":
         return ProdConfig
+    elif env == "test":
+        return TestConfig
     return DevelopmentConfig

@@ -5,6 +5,7 @@ Flask ルートとHTTPレスポンスをテストします。
 
 import logging
 from typing import Any
+import re
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
@@ -17,6 +18,24 @@ import app.extensions as ext
 logger = logging.getLogger(__name__)
 
 
+def get_csrf_token(client: FlaskClient) -> str:
+    """フォームから CSRF トークンを取得
+    
+    Args:
+        client: Flask test client
+    
+    Returns:
+        CSRF トークン文字列
+    """
+    response = client.get("/")
+    # HTML から name="csrf_token" の value を抽出
+    match = re.search(r'name="csrf_token"\s+type="hidden"\s+value="([^"]+)"', response.text)
+    if not match:
+        logger.warning("CSRF token not found in form")
+        return ""
+    return match.group(1)
+
+
 @pytest.fixture(autouse=True)
 def setup_test_db(client: FlaskClient) -> Any:
     """各テストケース実行前にテスト用 DB を初期化
@@ -27,15 +46,6 @@ def setup_test_db(client: FlaskClient) -> Any:
     Yields:
         None
     """
-    # テスト用 in-memory DB を初期化
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    
-    # グローバル extensions を設定
-    ext.engine = engine
-    ext.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    
-    logger.info("Test database initialized for route testing")
     yield
 
 
@@ -85,9 +95,11 @@ class TestIndexRoute:
         Args:
             client: Flask test client
         """
+        csrf_token = get_csrf_token(client)
+        
         response = client.post(
             "/",
-            data={"name": "Test User"},
+            data={"name": "Test User", "csrf_token": csrf_token},
             follow_redirects=False
         )
         
@@ -101,9 +113,11 @@ class TestIndexRoute:
         Args:
             client: Flask test client
         """
+        csrf_token = get_csrf_token(client)
+        
         response = client.post(
             "/",
-            data={"name": "Redirect Test"},
+            data={"name": "Redirect Test", "csrf_token": csrf_token},
             follow_redirects=True
         )
         
@@ -116,9 +130,11 @@ class TestIndexRoute:
         Args:
             client: Flask test client
         """
+        csrf_token = get_csrf_token(client)
+        
         response = client.post(
             "/",
-            data={"name": ""},
+            data={"name": "", "csrf_token": csrf_token},
             follow_redirects=True
         )
         
@@ -131,9 +147,11 @@ class TestIndexRoute:
         Args:
             client: Flask test client
         """
+        csrf_token = get_csrf_token(client)
+        
         response = client.post(
             "/",
-            data={"name": "   "},
+            data={"name": "   ", "csrf_token": csrf_token},
             follow_redirects=True
         )
         
@@ -149,8 +167,8 @@ class TestIndexRoute:
         response = client.get("/")
         
         assert response.status_code == 200
-        # Flask-WTF が csrf_token() マクロを使用しているため、関連する要素を確認
-        assert "csrf" in response.text.lower() or "token" in response.text.lower()
+        # CSRF トークンが存在することを確認
+        assert "csrf_token" in response.text
         logger.info("CSRF token found in form")
     
     def test_multiple_names_accumulate(self, client: FlaskClient) -> None:
@@ -162,9 +180,10 @@ class TestIndexRoute:
         names = ["Alice", "Bob", "Charlie"]
         
         for name in names:
+            csrf_token = get_csrf_token(client)
             response = client.post(
                 "/",
-                data={"name": name},
+                data={"name": name, "csrf_token": csrf_token},
                 follow_redirects=True
             )
             assert response.status_code == 200
