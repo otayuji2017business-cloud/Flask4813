@@ -384,7 +384,239 @@ Flask4813
 
 ---
 
-## 🐛 トラブルシューティング
+## � GitHub Artifacts のセットアップと使用方法
+
+### 概要
+
+**GitHub Artifacts** は、CI/CD ワークフロー内で生成されたファイル（テストレポート、カバレッジレポートなど）を保存・ダウンロードできる機能です。本プロジェクトでは、pytest の **カバレッジレポート（HTML形式）** を Artifacts として自動保存しています。
+
+**特徴:**
+- ✅ セットアップ不要（ワークフローで自動的に設定済み）
+- ✅ テスト完了後、ブラウザで閲覧可能
+- ✅ テストカバレッジの可視化
+- ✅ 過去のテスト実行結果を比較可能
+
+---
+
+### セットアップ状況確認
+
+#### Step 1: GitHub リポジトリにアクセス
+
+https://github.com/otayuji2017business-cloud/Flask4813
+
+#### Step 2: Actions タブを開く
+
+```
+GitHub リポジトリ → 上部メニュー
+  ↓
+[Actions] タブをクリック
+```
+
+画面例：
+```
+GitHub リポジトリ画面
+┌─────────────────────────────────────┐
+│ Code  Issues  Pull Requests  Actions │  ← ここ
+└─────────────────────────────────────┘
+```
+
+#### Step 3: ワークフロー実行履歴を確認
+
+```
+Actions タブ内
+  ↓
+左側メニュー: "CI - Lint, Format, Type Check, Test"
+  ↓
+最新の実行（例：commit メッセージ表示）をクリック
+```
+
+画面例：
+```
+ワークフロー実行履歴
+├─ ✅ Merge pull request #1 into main    2024-02-19 12:30 UTC
+├─ ✅ test-ci-workflow branch push       2024-02-19 12:15 UTC
+└─ ✅ Initial commit                     2024-02-19 11:45 UTC
+```
+
+#### Step 4: Artifacts を確認
+
+最新のワークフロー実行を開くと、以下のように表示されます：
+
+```
+Artifacts
+┌──────────────────────────────────────┐
+│ 📦 coverage-report                   │
+│    Size: 45 KB                       │
+│    [Download] ボタン                 │
+└──────────────────────────────────────┘
+```
+
+---
+
+### Artifacts のダウンロードと閲覧
+
+#### Step 1: Artifacts をダウンロード
+
+ワークフロー実行ページで以下をクリック：
+
+```
+📦 coverage-report
+  ↓
+[Download] ボタンをクリック
+```
+
+自動的に `coverage-report.zip` がダウンロードされます。
+
+#### Step 2: ZIP ファイルを解凍
+
+ダウンロードフォルダから：
+
+```powershell
+# ZIP ファイルが保存されている場所に移動
+cd Downloads
+
+# ZIP ファイルを解凍
+Expand-Archive coverage-report.zip -DestinationPath coverage-report
+```
+
+または、Windows エクスプローラーで右クリック → 「すべて展開」
+
+#### Step 3: カバレッジレポートを閲覧
+
+解凍されたフォルダを開く：
+
+```
+coverage-report/
+  ├─ index.html          ← これをブラウザで開く
+  ├─ app_models_py.html
+  ├─ app__init___py.html
+  ...
+```
+
+**ブラウザで開く:**
+
+PowerShell：
+```powershell
+# coverage-report フォルダに移動
+cd coverage-report
+
+# index.html をブラウザで開く
+Invoke-Item .\index.html
+```
+
+または、手動で：
+1. `coverage-report` フォルダを開く
+2. `index.html` を右クリック
+3. 「プログラムから開く」→「Chrome」または「Edge」
+
+#### Step 4: カバレッジレポートを確認
+
+ブラウザに以下のように表示されます：
+
+```
+COVERAGE REPORT
+
+statements: 64 / 100 (64%)
+branches: 12 / 20 (60%)
+
+modules              coverage  missing
+====================================
+app/__init__.py      100%      
+app/routes.py        58%       85-90, 105
+app/models.py        100%      
+app/extensions.py    90%       45
+config.py            85%       12-15
+====================================
+
+total                 64%
+```
+
+**見方:**
+- **statements (ステートメント)**: コード行の実行比率
+- **branches (分岐)**: if/else などの分岐カバレッジ
+- **missing**: テストされていない行番号
+
+---
+
+### 🔍 CI ワークフロー内の Artifacts 生成設定
+
+参考（ユーザーが修正することはありません）：
+
+`.github/workflows/ci.yml` 内で以下のように設定されています：
+
+```yaml
+- name: Run pytest tests
+  run: pytest tests/ -v --cov=app --cov-report=html
+
+- name: Upload coverage to artifacts
+  uses: actions/upload-artifact@v4
+  with:
+    name: coverage-report
+    path: htmlcov/
+  if: always()
+```
+
+**説明:**
+- `--cov-report=html`: HTML形式のレポート生成
+- `upload-artifact@v4`: GitHub Artifacts にアップロード
+- `if: always()`: テスト失敗時もアップロード（除外含める）
+
+---
+
+### 📊 実用的な使用例
+
+#### 例 1: テストカバレッジの改善を確認
+
+**手順:**
+1. ローカルでコードを修正
+2. 新しいテストを追加
+3. `git push` でアップロード
+4. CI ワークフロー完了後、Artifacts をダウンロード
+5. `index.html` で新しいカバレッジを確認
+6. 前回のレポートと比較
+
+#### 例 2: PR 時のテスト結果を確認
+
+**手順:**
+1. PR を作成
+2. GitHub Actions の CI ワークフロー実行を待つ
+3. PR ページの右側 "Checks" セクションで実行状況を確認
+4. "CI - Lint, Format..." をクリック
+5. Artifacts をダウンロードしてレポート確認
+
+#### 例 3: 本番デプロイ前の品質確認
+
+**チェックリスト:**
+```
+デプロイ前の品質確認
+☐ CI ワークフローが ✅ All checks passed
+☐ テストが 8/8 passing
+☐ カバレッジが 60% 以上
+☐ Lint エラーなし
+☐ 型チェックエラーなし
+```
+
+---
+
+### 💾 Artifacts の保持期間
+
+**デフォルト**: 90日間保持
+
+GitHub リポジトリ Settings → Actions → Artifacts の削除でカスタマイズ可能：
+
+```
+Settings → Actions → General
+  ↓
+Artifact and log retention
+  ↓
+Retention period: 90 days (デフォルト)
+  ↓
+更新をクリック
+```
+
+---
+
+## �🐛 トラブルシューティング
 
 ### ❌ CI ワークフローが失敗した場合
 
