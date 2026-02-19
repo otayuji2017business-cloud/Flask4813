@@ -414,10 +414,144 @@ python -m pytest tests/ -v
 
 **原因:** GCP_SA_KEY または GCP_PROJECT_ID が違う可能性
 
+**エラーメッセージ例:**
+```
+error getting credentials - err: exit status 1, out: `You do not currently have an active account selected.`
+```
+
 **対処方法:**
-1. GitHub Settings → Secrets を再確認
-2. GCP_SA_KEY の JSON ファイルが正しいか確認
-3. Secrets を修正して再度 main にマージ
+
+#### 1️⃣ GitHub Secrets を再確認
+
+GitHub リポジトリ Settings → Secrets → Actions で以下を確認：
+
+```
+✅ GCP_PROJECT_ID が設定されているか
+✅ GCP_SA_KEY が設定されているか
+```
+
+#### 2️⃣ GCP_SA_KEY の JSON 形式を確認
+
+GCP SA Key JSON ファイルを確認：
+
+```json
+{
+  "type": "service_account",
+  "project_id": "platinum-linker-487308-t8",
+  "private_key_id": "702b5b109b209ca92...",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG...",
+  "client_email": "flask-run-sa@platinum-linker-487308-t8.iam.gserviceaccount.com",
+  "client_id": "112201114201225977757",
+  (その他のフィールド...)
+}
+```
+
+**チェックポイント:**
+- ✅ `private_key` に改行がある（`\n` で表現）
+- ✅ JSON が完全で、末尾の } でクローズしている
+- ✅ `project_id` と GCP_PROJECT_ID が一致している
+
+#### 3️⃣ GitHub Secrets を再設定
+
+古い値を削除して新規設定：
+
+**GitHub 画面:**
+```
+Settings → Secrets and variables → Actions
+  → GCP_SA_KEY を削除
+  → New repository secret をクリック
+  → GCP_SA_KEY を改めて貼り付け
+```
+
+**重要:** JSON ファイル全体を **1行で** コピー＆ペーストしてください（改行やスペースを入れない）
+
+#### 4️⃣ GCP SA Key の権限確認
+
+GCP Console で以下を確認：
+
+```
+IAM と管理 → IAM
+  → サービスアカウント（flask-run-sa@...）
+  → ロールが以下の3つ設定されているか確認：
+     ✅ roles/artifactregistry.writer
+     ✅ roles/run.developer
+     ✅ roles/cloudsql.client
+```
+
+足りないロールがあれば追加してください。
+
+#### 5️⃣ デプロイワークフローを再実行
+
+修正後、以下で再実行：
+
+**GitHub Web UI:**
+```
+Actions → Deploy ワークフロー
+  → 右上の [Run workflow] をクリック
+  → main ブランチを選択
+  → [Run workflow] をクリック
+```
+
+または **PowerShell で再度 push:**
+
+```powershell
+cd C:\Users\ota-yuji\Documents\GitHub\Flask4813
+git switch main
+git pull origin main
+$ (コードに変更がなければ) 
+git commit --allow-empty -m "Retry deploy workflow"
+git push origin main
+```
+
+### ❌ Cloud Run にアクセスできない場合
+
+---
+
+## 🔍 GCP 認証エラーの詳細診断
+
+### エラーメッセージ
+```
+error getting credentials - err: exit status 1
+You do not currently have an active account selected
+```
+
+### 診断チェックリスト
+
+| 項目 | 確認方法 | 修正方法 |
+|-----|--------|--------|
+| **Secrets 存在確認** | GitHub Settings → Secrets で GCP_PROJECT_ID と GCP_SA_KEY が表示されているか | 表示されていなければ新規作成 |
+| **JSON 形式確認** | `"private_key"` が改行なし（`\n`で表現）か | テキストエディタで確認、修正 |
+| **Project ID 一致** | GCP_PROJECT_ID と SA Key の `project_id` が同じか | 異なればどちらかを修正 |
+| **SA権限確認** | GCP Console で 3つのロールが付与されているか | 不足していれば付与 |
+
+### デバッグ用ワークフロー（オプション）
+
+`.github/workflows/debug-gcp.yml` を作成してデバッグ情報を取得：
+
+```yaml
+name: Debug GCP Setup
+
+on: workflow_dispatch
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Check GCP authentication
+        run: |
+          echo "Project ID: $(gcloud config get-value project)"
+          gcloud auth list
+          gcloud config list
+```
+
+GitHub Actions で `Run workflow` ボタンからこのワークフローを実行すると、詳細情報が表示されます。
+
+---
 
 ### ❌ Cloud Run にアクセスできない場合
 
@@ -450,6 +584,69 @@ python -m pytest tests/ -v
    - カスタムドメイン設定
    - SSL/TLS 設定
    - バックアップ設定
+
+---
+
+## ✅ チェックリスト（完了確認）
+
+セットアップ完了時に以下が全て ✅ であることを確認してください：
+
+---
+
+## 🛠️ ローカル環境での GCP SA Key 検証
+
+GitHub にアップロード前に、ローカルで GCP SA Key が有効か検証できます：
+
+### Step 1: JSON ファイルをダウンロード
+
+GCP Console からダウンロードした SA Key ファイルを確認：
+
+```
+platinum-linker-487308-t8-702b5b109b20.json
+```
+
+### Step 2: JSON 形式を確認
+
+PowerShell で検証：
+
+```powershell
+# JSON ファイルの内容確認
+Get-Content platinum-linker-487308-t8-702b5b109b20.json
+
+# 結果例（整形版）：
+# {
+#   "type": "service_account",
+#   "project_id": "platinum-linker-487308-t8",
+#   "private_key_id": "702b5b109b209ca92...",
+#   "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG...",
+#   ...
+# }
+```
+
+**確認ポイント:**
+- ✅ `private_key` に改行あり（`\n` で表現）
+- ✅ JSON が完全でエラーなし
+
+### Step 3: GitHub Secrets に貼り付け
+
+**PowerShell で全内容をクリップボードにコピー:**
+
+```powershell
+Get-Content platinum-linker-487308-t8-702b5b109b20.json | Set-Clipboard
+```
+
+**または、手動でコピー:**
+1. JSON ファイルをテキストエディタで開く
+2. 全選択（Ctrl+A）
+3. コピー（Ctrl+C）
+
+**GitHub に貼り付け:**
+1. GitHub Settings → Secrets → New repository secret
+2. Name: `GCP_SA_KEY`
+3. Value: **クリップボードの内容をペースト（Ctrl+V）**
+4. Add secret
+
+**重要:** JSON を複数行で貼り付けずに、そのまま貼り付けてください。GitHub が自動的に処理します。
 
 ---
 
