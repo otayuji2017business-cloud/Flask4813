@@ -615,7 +615,375 @@ Retention period: 90 days (デフォルト)
 ```
 
 ---
+## 📦 Artifact Registry のセットアップと使用方法
 
+### 概要
+
+**Artifact Registry** は、Google Cloud Platform の **Docker イメージを保存・管理するレジストリ** です。本プロジェクトでは、CI/CD パイプラインが自動的に Flask アプリケーションの Docker イメージをビルドし、Artifact Registry に保存します。
+
+**特徴:**
+- ✅ Docker イメージの一元管理
+- ✅ Cloud Run との統合（デプロイ時に自動取得）
+- ✅ バージョン管理（複数イメージを保存可能）
+- ✅ IAM ロールによるアクセス制御
+
+---
+
+### 🔧 既存セットアップの確認
+
+ユーザーが以下を実行済みのため、セットアップは既に完了しています：
+
+```powershell
+gcloud auth configure-docker asia-northeast1-docker.pkg.dev
+```
+
+このコマンドにより：
+- ✅ Docker が GCP 認証を使用可能に
+- ✅ ローカル環境から Artifact Registry にプッシュ可能
+- ✅ `~/.docker/config.json` に認証情報を保存
+
+---
+
+### 📍 GCP Console での確認
+
+#### Step 1: Google Cloud Console を開く
+
+ブラウザで以下にアクセス：
+```
+https://console.cloud.google.com/
+```
+
+#### Step 2: Artifact Registry を開く
+
+左サイドバーから以下をクリック：
+```
+① メニューアイコン ☰
+  ↓
+② 「Artifact Registry」を検索
+  ↓
+③ 「Artifact Registry」をクリック
+```
+
+#### Step 3: リポジトリを確認
+
+画面に以下のように表示されます：
+
+```
+Artifact Registry
+
+リポジトリ
+├─ flask4813 (asia-northeast1)
+   │  形式: Docker
+   │  ロケーション: asia-northeast1
+   │  タイプ: スタンダード
+   └─ 内容：
+      ├─ web (oldest)    2026-02-19 10:00:00
+      ├─ web (latest)    2026-02-19 11:30:00
+      └─ web (develop)   2026-02-19 12:00:00
+```
+
+#### Step 4: イメージの詳細を確認
+
+リポジトリ `flask4813` をクリックすると、保存されている Docker イメージ一覧が表示されます：
+
+```
+イメージ一覧
+
+イメージ名: asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web
+
+タグ一覧:
+├─ latest      (最新版)
+├─ v1.0.0      (バージョンタグ)
+└─ develop     (開発版)
+
+各イメージをクリックすると以下の情報が表示：
+- イメージサイズ
+- 作成日時
+- SHA256 ダイジェスト
+- テアグの履歴
+```
+
+---
+
+### 🐳 Docker イメージの確認（ローカル）
+
+#### Step 1: ローカルにプルしたイメージを確認
+
+PowerShell で以下を実行：
+
+```powershell
+# ローカルの Docker イメージを表示
+docker images | grep flask4813
+```
+
+実行結果例：
+```
+REPOSITORY                                                             TAG       IMAGE ID      CREATED      SIZE
+asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web latest    a1b2c3d4e5f6  2 hours ago  150MB
+```
+
+#### Step 2: Docker イメージの詳細を確認
+
+```powershell
+# イメージの詳細情報
+docker inspect asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web:latest
+```
+
+実行結果例：
+```
+[
+  {
+    "Id": "sha256:a1b2c3d4e5f6...",
+    "RepoTags": [
+      "asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web:latest"
+    ],
+    "Created": "2026-02-19T11:30:00.000000Z",
+    "Size": 157286400,
+    "Config": {
+      "Env": [
+        "FLASK_ENV=production"
+      ]
+    }
+  }
+]
+```
+
+---
+
+### 🚀 GitHub Actions での自動デプロイ フロー
+
+#### 概要
+
+GitHub Actions の `deploy.yml` ワークフローは以下の手順で自動的に Artifact Registry を使用します：
+
+```
+① main ブランチへのマージ検出
+   ↓
+② テスト実行（pytest）
+   ↓
+③ Docker イメージをビルド
+   ↓
+④ Artifact Registry にプッシュ
+   ↓
+⑤ Cloud Run にデプロイ
+```
+
+#### Step 1: ローカルでコード修正
+
+```powershell
+# リポジトリに移動
+cd C:\Users\ota-yuji\Documents\GitHub\Flask4813
+
+# テスト用ブランチを作成
+git checkout -b feature/new-feature
+
+# コードを修正（例：app/routes.py）
+# ...
+
+# 変更をコミット
+git add app/
+git commit -m "feat: Add new feature"
+```
+
+#### Step 2: GitHub に push
+
+```powershell
+git push origin feature/new-feature
+```
+
+#### Step 3: PR を作成・マージ
+
+GitHub Web UI で：
+```
+① [Compare & pull request] をクリック
+   ↓
+② PR を作成
+   ↓
+③ CI ワークフロー完了後、approve
+   ↓
+④ [Merge and commit] をクリック
+```
+
+#### Step 4: 自動デプロイ開始
+
+main ブランチへのマージを検出すると、自動的に deploy ワークフロー開始：
+
+```
+GitHub Actions → Deploy ワークフロー
+├─ ① Run Tests  ✅ (1 min)
+├─ ② Build Docker Image  ✅ (2 min)
+│  └─ docker build -t asia-northeast1-docker.pkg.dev/.../web:latest .
+├─ ③ Push to Artifact Registry  ✅ (1 min)
+│  └─ docker push asia-northeast1-docker.pkg.dev/.../web:latest
+└─ ④ Deploy to Cloud Run  ✅ (1-2 min)
+   └─ cloud run deploy flask4813-web ...
+```
+
+#### Step 5: Artifact Registry に確認
+
+デプロイ完了後、GCP Console で確認：
+
+```
+Artifact Registry → flask4813 リポジトリ
+├─ イメージ: web
+│  タグ:
+│  ├─ latest (新しいハッシュ)
+│  └─ (タイムスタンプ付きタグ)
+└─ 最終アップロード: 2026-02-19 12:05:00 UTC
+```
+
+---
+
+### 📊 実用的な使用例
+
+#### 例 1: ローカルでテスト後、Artifact Registry にプッシュ
+
+**手順:**
+```powershell
+# フォルダに移動
+cd C:\Users\ota-yuji\Documents\GitHub\Flask4813
+
+# Docker イメージをビルド
+docker build -t asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web:v1.0.0 .
+
+# Artifact Registry にプッシュ
+docker push asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web:v1.0.0
+
+# GCP Console で確認
+# Artifact Registry → flask4813 → web タグ一覧に v1.0.0 が表示される
+```
+
+#### 例 2: 複数バージョンを管理
+
+**GitHub Actions により自動的に作成される:**
+```
+latest        ← 最新デプロイ版
+v1.0.0        ← 本番バージョン
+develop       ← 開発版
+{commit-sha}  ← コミットハッシュ
+```
+
+#### 例 3: 特定バージョンで Cloud Run を再デプロイ
+
+GCP Console での手動操作：
+```
+Cloud Run → flask4813-web サービス
+  → [Create New Revision] をクリック
+  → Container Image: を変更
+  → asia-northeast1-docker.pkg.dev/.../web:v1.0.0
+  → [Deploy] をクリック
+```
+
+---
+
+### 🔍 ストレージコスト管理
+
+#### 古いイメージの削除
+
+Artifact Registry にはストレージコストが発生します。古いイメージを定期的に削除：
+
+**GCP Console:**
+```
+Artifact Registry → flask4813 リポジトリ
+  → 古いイメージを選択
+  → [Delete Image] をクリック
+```
+
+**または PowerShell:**
+```powershell
+# プロジェクトIDを設定
+$PROJECT_ID = "platinum-linker-487308-t8"
+$REGION = "asia-northeast1"
+$REPO = "flask4813"
+$IMAGE = "web"
+
+# 古いタグを削除
+gcloud artifacts docker images delete `
+  $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:old-tag
+```
+
+#### 保持ポリシー設定
+
+自動削除ポリシーを設定：
+
+```
+Artifact Registry → リポジトリ設定
+  → Cleanup policies
+  → Keep at least X images
+  → Delete images older than X days
+```
+
+推奨設定：
+```
+- Keep the latest 10 versions
+- Delete images older than 30 days
+```
+
+---
+
+### 🐛 トラブルシューティング
+
+#### ❌ Docker push に失敗
+
+**エラーメッセージ例:**
+```
+denied: User does not have storage.buckets.get access to bucket
+```
+
+**原因:** GCP サービスアカウントの権限不足
+
+**対処方法:**
+
+GCP Console で IAM ロールを確認：
+```
+IAM と管理 → IAM
+  → サービスアカウント（flask-run-sa@...）
+  → 以下のロールが付与されているか確認：
+     ✅ roles/artifactregistry.writer
+```
+
+不足していれば追加：
+```
+① サービスアカウント行をクリック
+   ↓
+② [Edit Principal] をクリック
+   ↓
+③ [Add Another Role] をクリック
+   ↓
+④ 「Artifact Registry Writer」を検索・選択
+   ↓
+⑤ [Save] をクリック
+```
+
+#### ❌ Docker pull に失敗
+
+**エラーメッセージ例:**
+```
+authentication required
+```
+
+**原因:** Docker 認証が未設定
+
+**対処方法:**
+
+```powershell
+# 認証を再設定
+gcloud auth configure-docker asia-northeast1-docker.pkg.dev
+```
+
+#### ❌ イメージが見つからない
+
+**確認方法:**
+
+```powershell
+# GCP 側のイメージを確認
+gcloud artifacts docker images list asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813
+
+# 結果例：
+# asia-northeast1-docker.pkg.dev/platinum-linker-487308-t8/flask4813/web
+```
+
+---
 ## �🐛 トラブルシューティング
 
 ### ❌ CI ワークフローが失敗した場合
